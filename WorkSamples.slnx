@@ -2,4 +2,7 @@
   <Folder Name="/source/">
     <Project Path="source/WorkSamples.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TollFeeCalculator.Tests/TollFeeCalculator.Tests.csproj" />
+  </Folder>
 </Solution>
