@@ -3,6 +3,7 @@ using System.Globalization;
 using TollFeeCalculator;
 using TollFeeCalculator.Interfaces;
 using TollFeeCalculator.Enums;
+using System.Linq;
 namespace TollFeeCalculator.Services
 {
     public class TollCalculator
@@ -29,6 +30,12 @@ namespace TollFeeCalculator.Services
         private const int SixPm = 18 * 60;
         private const int SixThirtyPm = 18 * 60 + 30;
 
+        // To be used in GetTollFee function
+        private const int MaximumDailyFee = 60;
+        private const int SingleChargePeriodMinutes = 60;
+
+        // ** Adding Hashset to be used in IsTollFreeDate(DateTime date) **
+
         private static readonly HashSet<DateOnly> TollFreeDates =
         [
             new(2013, 1, 1),
@@ -51,29 +58,58 @@ namespace TollFeeCalculator.Services
 
         public int GetTollFee(IVehicle vehicle, DateTime[] dates)
         {
-            DateTime intervalStart = dates[0];
-            int totalFee = 0;
-            foreach (DateTime date in dates)
+            // If vehicle or dates is null -> Exception
+            ArgumentNullException.ThrowIfNull(vehicle);
+            ArgumentNullException.ThrowIfNull(dates);
+
+            if (dates.Length == 0)
             {
-                int nextFee = GetTollFee(date, vehicle);
-                int tempFee = GetTollFee(intervalStart, vehicle);
+                return 0;
+            }
 
-                long diffInMillies = date.Millisecond - intervalStart.Millisecond;
-                long minutes = diffInMillies / 1000 / 60;
+            // Make sure earliest time first
+            DateTime[] sortedDates = dates
+                .OrderBy(date => date)
+                .ToArray();
 
-                if (minutes <= 60)
+            DateTime intervalStart = sortedDates[0];
+            int highestFeeInterval = GetTollFee(intervalStart, vehicle);
+            int totalFee = 0;
+            
+            // First intervall is already handled so skip it
+
+            foreach (DateTime date in sortedDates.Skip(1))
+            {
+                int currentFee = GetTollFee(date, vehicle);
+
+                double minutesSinceIntervalStart =
+                    (date - intervalStart).TotalMinutes;
+
+                // If fee changed inside of 60 minute time period totalFee should not increase but highest Fee during this time should in the end be added to totalFee
+
+                if (minutesSinceIntervalStart <= SingleChargePeriodMinutes)
                 {
-                    if (totalFee > 0) totalFee -= tempFee;
-                    if (nextFee >= tempFee) tempFee = nextFee;
-                    totalFee += tempFee;
+                    highestFeeInterval =
+                        Math.Max(highestFeeInterval, currentFee);
                 }
                 else
                 {
-                    totalFee += nextFee;
+                    // add the Fee when interval is more then 60 min
+                    totalFee += highestFeeInterval;
+
+                    //Set the new time to compare nextFee with, to first time that occurs after 60 min
+                    intervalStart = date;
+                    
+                    //This time should also have a new higestFeeInterval which is the currentFee of current time 
+                    highestFeeInterval = currentFee;
                 }
             }
-            if (totalFee > 60) totalFee = 60;
-            return totalFee;
+
+            totalFee += highestFeeInterval;
+
+            //If totalFee is more than 60:- then no more fee should be added 
+
+            return Math.Min(totalFee, MaximumDailyFee);
         }
 
         private bool IsTollFreeVehicle(IVehicle vehicle)
@@ -150,29 +186,40 @@ namespace TollFeeCalculator.Services
             };
         }
 
-        private Boolean IsTollFreeDate(DateTime date)
+        private static bool IsTollFreeDate(DateTime date)
         {
-            int year = date.Year;
-            int month = date.Month;
-            int day = date.Day;
+            bool isWeekend = date.DayOfWeek is
+                DayOfWeek.Saturday or
+                DayOfWeek.Sunday;
 
-            if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday) return true;
+            bool isTollFreeJuly =
+                date.Year == 2013 &&
+                date.Month == 7;
 
-            if (year == 2013)
-            {
-                if (month == 1 && day == 1 ||
-                    month == 3 && (day == 28 || day == 29) ||
-                    month == 4 && (day == 1 || day == 30) ||
-                    month == 5 && (day == 1 || day == 8 || day == 9) ||
-                    month == 6 && (day == 5 || day == 6 || day == 21) ||
-                    month == 7 ||
-                    month == 11 && day == 1 ||
-                    month == 12 && (day == 24 || day == 25 || day == 26 || day == 31))
-                {
-                    return true;
-                }
-            }
-            return false;
+            // ** Making it less messy**
+            //-------------------------------------------------------------------
+            // if (year == 2013)
+            // {
+            //     if (month == 1 && day == 1 ||
+            //         month == 3 && (day == 28 || day == 29) ||
+            //         month == 4 && (day == 1 || day == 30) ||
+            //         month == 5 && (day == 1 || day == 8 || day == 9) ||
+            //         month == 6 && (day == 5 || day == 6 || day == 21) ||
+            //         month == 7 ||
+            //         month == 11 && day == 1 ||
+            //         month == 12 && (day == 24 || day == 25 || day == 26 || day == 31))
+            //     {
+            //         return true;
+            //     }
+            // }
+            // return false;
+            //---------------------------------------------------------------------
+
+            bool isTollfreeDate =
+                TollFreeDates.Contains(DateOnly.FromDateTime(date));
+
+            return isWeekend || isTollFreeJuly || isTollfreeDate;
+
         }
 
         // ** Dont need this, created another ENUM in VehicleType.cs ** 
