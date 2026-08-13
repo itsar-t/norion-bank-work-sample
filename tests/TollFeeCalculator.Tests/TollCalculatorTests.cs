@@ -1,3 +1,5 @@
+using TollFeeCalculator.Enums;
+using TollFeeCalculator.Interfaces;
 using TollFeeCalculator.Models;
 using TollFeeCalculator.Services;
 
@@ -108,7 +110,7 @@ namespace TollFeeCalculator.Tests
 
             Assert.Equal(0, result);
         }
-        
+
         [Theory]
         [InlineData(6, 0, 8)]
         [InlineData(6, 30, 13)]
@@ -131,5 +133,41 @@ namespace TollFeeCalculator.Tests
 
             Assert.Equal(expectedFee, result);
         }
+
+        /* 
+            To test other Models not included in the  I will implement a small class (TestVehicle) in
+            this test file only.
+            I will mark the class as sealed since I do not want other classes to be able to inherit from it, i.e. it should not be a base class.
+        */
+
+        private sealed class TestVehicle : IVehicle
+        {
+            public VehicleType Type { get; }
+
+            public TestVehicle(VehicleType type)
+            {
+                Type = type;
+            }
+        }
+
+
+        [Theory]
+        [InlineData(VehicleType.Motorbike)]
+        [InlineData(VehicleType.Tractor)]
+        [InlineData(VehicleType.Emergency)]
+        [InlineData(VehicleType.Diplomat)]
+        [InlineData(VehicleType.Foreign)]
+        [InlineData(VehicleType.Military)]
+        public void GetTollFee_ForTollFreeVehicle_ReturnsZero(
+            VehicleType vehicleType)
+        {
+            IVehicle vehicle = new TestVehicle(vehicleType);
+            DateTime passage = new(2013, 1, 2, 7, 30, 0);
+
+            int result = _calculator.GetTollFee(passage, vehicle);
+
+            Assert.Equal(0, result);
+        }
+        
     }
 }
