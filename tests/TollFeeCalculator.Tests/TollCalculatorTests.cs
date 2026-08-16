@@ -168,6 +168,53 @@ namespace TollFeeCalculator.Tests
 
             Assert.Equal(0, result);
         }
+
+        // -- Exceptions --
+
+        [Fact]
+        public void GetTollFee_WithPassagesFromDifferentDays_ThrowsArgumentException()
+        {
+            DateTime[] passages =
+            [
+                new(2013, 1, 2, 7, 30, 0),
+                new(2013, 1, 3, 8, 0, 0)
+
+            ];
+
+            ArgumentException exception =
+                Assert.Throws<ArgumentException>(() =>
+                    _calculator.GetTollFee(_car, passages));
+
+            Assert.Equal("dates", exception.ParamName);
+        }
+
+
+        [Fact]
+        public void GetTollFee_DatesIsNull_ThrowsArgumentNullException()
+        {
+
+            ArgumentNullException exception =
+                Assert.Throws<ArgumentNullException>(() =>
+                    _calculator.GetTollFee(_car, null!));
+            Assert.Equal("dates", exception.ParamName);
+        }
+        
+
+        [Fact]
+        public void GetTollFee_VehicleIsNull_ThrowsArgumentNullException()
+        {
+            DateTime[] passages =
+            [
+                new(2013, 1, 2, 7, 30, 0),
+                new(2013, 1, 2, 8, 0, 0)
+
+            ];
+
+            ArgumentNullException exception =
+                Assert.Throws<ArgumentNullException>(() =>
+                    _calculator.GetTollFee(null!, passages));
+            Assert.Equal("vehicle", exception.ParamName);
+        }
         
     }
 }

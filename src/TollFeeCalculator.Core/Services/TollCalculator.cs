@@ -73,6 +73,25 @@ namespace TollFeeCalculator.Services
                 .ToArray();
 
             DateTime intervalStart = sortedDates[0];
+
+            /*
+                The original implementation assumes that all passages occur on the same day,
+                but it does not validate this requirement. The Core layer throws an
+                ArgumentException when passages have different dates, while the API returns
+                HTTP 400 for invalid client input. A built-in exception is sufficient because
+                a custom exception would not add meaningful information here.
+            */
+
+            bool containsMultipleDates = sortedDates
+                .Any(date => date.Date != intervalStart.Date);
+
+            if (containsMultipleDates)
+            {
+                throw new ArgumentException(
+                    "All passages must occur on the same day",
+                    nameof(dates));
+            }
+
             int highestFeeInterval = GetTollFee(intervalStart, vehicle);
             int totalFee = 0;
             
