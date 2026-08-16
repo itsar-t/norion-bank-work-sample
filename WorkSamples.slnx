@@ -4,6 +4,7 @@
     <Project Path="src/TollFeeCalculator.Core/TollFeeCalculator.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/TollFeeCalculator.Api.Tests/TollFeeCalculator.Api.Tests.csproj" />
     <Project Path="tests/TollFeeCalculator.Tests/TollFeeCalculator.Tests.csproj" />
   </Folder>
 </Solution>

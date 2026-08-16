@@ -34,3 +34,12 @@ if (app.Environment.IsDevelopment())
 app.MapTollEndpoints();
 
 app.Run();
+
+/*
+    Top-level statements generate the Program class automatically.
+    This public partial declaration makes it accessible to the API
+    integration test project through WebApplicationFactory<Program>.
+ */
+public partial class Program
+{
+}
