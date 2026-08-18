@@ -1,69 +1,200 @@
-import Image from "next/image";
+//Tell Next.js that this is a Client Component without it Next.js App Router would treat it as a Server Component
+"use client"; 
+
+
+import { type SubmitEvent, useState } from "react";
+import { calculateTollFee } from "@/lib/toll-api";
+
+import {
+  type VehicleType,
+  vehicleTypes
+} from "@/types/toll";
+
+//datetime-local expects the form ÅÅÅÅ-MM-DDTHH:mm
+const initialPassage = "2013-01-02T06:10";
 
 export default function Home() {
+  const [vehicleType, setVehicleType] = useState<VehicleType>("Car");
+  const [passages, setPassages] = useState<string[]>([initialPassage]);
+  const [totalFee, setTotalFee] = useState<number | null>(null);
+
+  //Potential Error
+  const [error, setError] = useState<string | null>(null);
+
+  //API call ongoing
+  const [isLoading, setIsLoading] = useState(false);
+
+  // function to add a new passage to our string array with passages
+  // will execute when user presses + Add passage and will add a new passage containing the initialPassage set above
+  function addPassage() {
+    setPassages((currentPassages) => [
+      ...currentPassages,
+      initialPassage,
+    ]);
+  }
+
+  function updatePassage(
+    index: number,
+    value: string,
+  ) {
+    setPassages((currentPassages) =>
+      currentPassages.map((passage, passageIndex) =>
+        passageIndex === index ? value : passage,
+      ),
+    );
+  }
+
+  function removePassage(index: number) {
+    setPassages((currentPassages) =>
+      currentPassages.filter(
+        (_, passageIndex) => passageIndex !== index,
+      ),
+    );
+  }
+
+  async function handleSubmit(
+    event: SubmitEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setError(null);
+    setTotalFee(null);
+    setIsLoading(true);
+
+    try {
+      const result = await calculateTollFee({
+        vehicleType,
+        passages
+      });
+
+      setTotalFee(result.totalFee);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "An unexpected error occured.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
+      <div className="mx-auto max-w-2xl">
+        <header className="mb-10">
+          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-cyan-400">
+            Gothenburg toll calculator
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <h1 className="text-4xl font-bold tracking-tight">
+            Calculate your toll fee
+          </h1>
+          <p className="mt-4 text-slate-300">
+            Select a vehicle and add its passages for one day.
+          </p>
+        </header>
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-8 rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl"
+        >
+          <div>
+            <label
+              htmlFor="vehicle-type"
+              className="mb-2 block font-medium">
+              Vehicle type
+            </label>
+            <select
+              id="vehicle-type"
+              value={vehicleType}
+              onChange={(event) =>
+                setVehicleType(
+                  event.target.value as VehicleType,
+                )
+              }
+              className="w-full rounded-lg border border-slate700 bg-slate-950 px-4 py-3"
+            >
+              {vehicleTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <fieldset>
+            <legend className="mb-3 font-medium">
+              Passages
+            </legend>
+
+            <div className="spece-y-3">
+              {passages.map((passage, index) => (
+                <div
+                  key={index}
+                  className="flex flex-col gap-3 sm:flex-row">
+                   
+                  <input
+                    type="datetime-local"
+                    value={passage}
+                    onChange={(event) =>
+                      updatePassage(
+                        index,
+                        event.target.value,
+                      )
+                    }
+                    required
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 [color-scheme:dark]"
+                    
+                  />
+                  
+                  <button
+                    type="button"
+                    onClick={() => removePassage(index)}
+                    disabled={passages.length === 1}
+                    className="rounded-lg border border-slate-700 px-4 py-3 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 "
+                  >Remove</button>
+                </div>
+              ))}
+             
+            </div>
+            <button
+              type="button"
+              onClick={addPassage}
+              className="mt-4 text-sm font-semibold text-cyan-400 hover:text-cyan-300"
+            >
+              + Add passage
+            </button>
+          </fieldset>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full rounded-lg bg-cyan-400 px-5 py-3 font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-wait disabled:opacity-60"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            {isLoading
+              ? "Calculating..."
+              : "Calculate toll fee"}
+          </button>
+        </form>
+        {totalFee !== null && (
+          <section className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
+            <p className="text-sm text-emerald-300">
+              Total toll fee
+            </p>
+
+            <p className="mt-1 text-4xl font-bold">
+              {totalFee} SEK
+            </p>
+          </section>
+        )}
+        
+        {error && (
+          <p
+            role="alert"
+            className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-200"
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+            {error}
+          </p>
+        )}
+      </div>
+    </main>
+  )
 }

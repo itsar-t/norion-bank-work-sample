@@ -18,6 +18,20 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddSingleton<TollCalculator>();
 
+const string FrontendCorsPolicy = "Frontend";
+
+builder.Services.AddCors(options =>
+{
+
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        policy
+            .WithOrigins("http://localhost:3000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 WebApplication app = builder.Build();
 
 
@@ -28,8 +42,13 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-// Activates later when frontend runs on different address,
-// app.UseCors();
+/*
+    Allow the local Next.js application to call the API during
+    development. Production origins will be configured separately
+    when the applications are deployed.
+ */
+
+app.UseCors(FrontendCorsPolicy);
 
 app.MapTollEndpoints();
 
