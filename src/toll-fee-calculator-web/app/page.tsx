@@ -141,7 +141,7 @@ export default function Home() {
                       )
                     }
                     required
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 [color-scheme:dark]"
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 scheme-dark"
                     
                   />
                   

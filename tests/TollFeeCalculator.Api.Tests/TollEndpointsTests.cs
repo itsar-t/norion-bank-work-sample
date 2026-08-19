@@ -51,6 +51,64 @@ public sealed class TollEndpointsTests
         Assert.NotNull(result);
         Assert.Equal(18, result.TotalFee);
 
+        Assert.Collection(
+            result.Passages,
+
+            firstPassage =>
+            {
+                Assert.Equal(
+                    new DateTime(2013, 1, 2, 6, 10, 0),
+                    firstPassage.PassageTime
+                );
+
+                Assert.Equal(
+                    8,
+                    firstPassage.PassageFee
+                );
+
+                Assert.Equal(
+                    8,
+                    firstPassage.RunningTotal
+                );
+            },
+
+            secondPassage =>
+            {
+                Assert.Equal(
+                    new DateTime(2013, 1, 2, 6, 40, 0),
+                    secondPassage.PassageTime
+                );
+
+                Assert.Equal(
+                    13,
+                    secondPassage.PassageFee
+                );
+
+                Assert.Equal(
+                    13,
+                    secondPassage.RunningTotal
+                );
+            },
+
+            thirdPassage =>
+            {
+                Assert.Equal(
+                    new DateTime(2013, 1, 2, 7, 5, 0),
+                    thirdPassage.PassageTime
+                );
+
+                Assert.Equal(
+                    18,
+                    thirdPassage.PassageFee
+                );
+
+                Assert.Equal(
+                    18,
+                    thirdPassage.RunningTotal
+                );
+            }
+        );
+
 
     }
 
