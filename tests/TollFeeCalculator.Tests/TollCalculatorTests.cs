@@ -198,7 +198,7 @@ namespace TollFeeCalculator.Tests
                     _calculator.GetTollFee(_car, null!));
             Assert.Equal("dates", exception.ParamName);
         }
-        
+
 
         [Fact]
         public void GetTollFee_VehicleIsNull_ThrowsArgumentNullException()
@@ -215,6 +215,97 @@ namespace TollFeeCalculator.Tests
                     _calculator.GetTollFee(null!, passages));
             Assert.Equal("vehicle", exception.ParamName);
         }
-        
+
+        [Fact]
+        public void Calculate_PassagesWithinSingleChargePeriod_ReturnsRunningTotals()
+        {
+            DateTime[] passages =
+            [
+                new(2013, 1, 2, 6, 10, 0),
+                new(2013, 1, 2, 6, 40, 0),
+                new(2013, 1, 2, 7, 5, 0)
+            ];
+
+            TollCalculationResult result =
+                _calculator.Calculate(_car, passages);
+
+            Assert.Equal(18, result.TotalFee);
+
+            Assert.Collection(
+                result.Passages,
+
+                firstPassage =>
+                {
+                    Assert.Equal(passages[0], firstPassage.PassageTime);
+                    Assert.Equal(8, firstPassage.PassageFee);
+                    Assert.Equal(8, firstPassage.RunningTotal);
+                },
+
+                secondPassage =>
+                {
+                    Assert.Equal(passages[1], secondPassage.PassageTime);
+                    Assert.Equal(13, secondPassage.PassageFee);
+                    Assert.Equal(13, secondPassage.RunningTotal);
+                },
+
+                thirdPassage =>
+                {
+                    Assert.Equal(passages[2], thirdPassage.PassageTime);
+                    Assert.Equal(18, thirdPassage.PassageFee);
+                    Assert.Equal(18, thirdPassage.RunningTotal);
+                }
+            );
+        }
+
+        [Fact]
+        public void Calculate_PassagesMultipleChargePeriods_ReturnsRunningTotals()
+        {
+            DateTime[] passages =
+            [
+                new(2013, 1, 2, 6, 10, 0),
+                new(2013, 1, 2, 6, 40, 0),
+                new(2013, 1, 2, 7, 15, 0)
+            ];
+
+            TollCalculationResult result =
+                _calculator.Calculate(_car, passages);
+
+            Assert.Equal(31, result.TotalFee);
+
+            Assert.Collection(
+                result.Passages,
+
+                firstPassage =>
+                {
+                    Assert.Equal(passages[0], firstPassage.PassageTime);
+                    Assert.Equal(8, firstPassage.PassageFee);
+                    Assert.Equal(8, firstPassage.RunningTotal);
+                },
+
+                secondPassage =>
+                {
+                    Assert.Equal(passages[1], secondPassage.PassageTime);
+                    Assert.Equal(13, secondPassage.PassageFee);
+                    Assert.Equal(13, secondPassage.RunningTotal);
+                },
+
+                thirdPassage =>
+                {
+                    Assert.Equal(passages[2], thirdPassage.PassageTime);
+                    Assert.Equal(18, thirdPassage.PassageFee);
+                    Assert.Equal(31, thirdPassage.RunningTotal);
+                }
+            );
+        }
+
+        [Fact]
+        public void Calculate_WithEmptyPassages_ReturnsEmptyResult()
+        {
+            TollCalculationResult result =
+                _calculator.Calculate(_car, []);
+
+            Assert.Equal(0, result.TotalFee);
+            Assert.Empty(result.Passages);
+        }
     }
 }

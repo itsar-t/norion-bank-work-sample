@@ -1,41 +1,37 @@
-﻿using System;
-using System.Globalization;
-using TollFeeCalculator;
+﻿using TollFeeCalculator.Enums;
 using TollFeeCalculator.Interfaces;
-using TollFeeCalculator.Enums;
-using System.Linq;
+using TollFeeCalculator.Models;
+
 namespace TollFeeCalculator.Services
 {
     public class TollCalculator
     {
+        private const int MinutesPerHour = 60;
 
-        /**
-         * Calculate the total toll fee for one day
-         *
-         * @param vehicle - the vehicle
-         * @param dates   - date and time of all passes on one day
-         * @return - the total toll fee for that day
-         */
+        private const int SixOClock = 6 * MinutesPerHour;
+        private const int SixThirty = 6 * MinutesPerHour + 30;
+        private const int SevenOClock = 7 * MinutesPerHour;
+        private const int EightOClock = 8 * MinutesPerHour;
+        private const int EightThirty = 8 * MinutesPerHour + 30;
+        private const int ThreePm = 15 * MinutesPerHour;
+        private const int ThreeThirtyPm = 15 * MinutesPerHour + 30;
+        private const int FivePm = 17 * MinutesPerHour;
+        private const int SixPm = 18 * MinutesPerHour;
+        private const int SixThirtyPm = 18 * MinutesPerHour + 30;
 
-        // ** Adding some constants to represent time - Will be used in GetTollFee function **
-
-        private const int SixOClock = 6 * 60;
-        private const int SixThirty = 6 * 60 + 30;
-        private const int SevenOClock = 7 * 60;
-        private const int EightOClock = 8 * 60;
-        private const int EightThirty = 8 * 60 + 30;
-        private const int ThreePm = 15 * 60;
-        private const int ThreeThirtyPm = 15 * 60 + 30;
-        private const int FivePm = 17 * 60;
-        private const int SixPm = 18 * 60;
-        private const int SixThirtyPm = 18 * 60 + 30;
-
-        // To be used in GetTollFee function
+        // Maximum total toll fee in SEK for one vehicle and one day.
         private const int MaximumDailyFee = 60;
-        private const int SingleChargePeriodMinutes = 60;
 
-        // ** Adding Hashset to be used in IsTollFreeDate(DateTime date) **
+        // Duration in minutes for the single-charge period.
+        private const int SingleChargePeriodMinutes =
+            MinutesPerHour;
 
+        /*
+            A HashSet is used because the toll-free dates must be
+            unique and are only checked for membership. Contains()
+            has an average time complexity of O(1), compared with
+            O(n) for a List.
+         */
         private static readonly HashSet<DateOnly> TollFreeDates =
         [
             new(2013, 1, 1),
@@ -56,95 +52,168 @@ namespace TollFeeCalculator.Services
             new(2013, 12, 31)
         ];
 
-        public int GetTollFee(IVehicle vehicle, DateTime[] dates)
+        /// <summary>
+        /// Calculates the total toll fee for one vehicle and one day.
+        /// </summary>
+        /// <param name="vehicle">
+        /// The vehicle passing the toll stations.
+        /// </param>
+        /// <param name="dates">
+        /// The passage dates and times for one day.
+        /// </param>
+        /// <returns>The total toll fee in SEK.</returns>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="vehicle"/> or
+        /// <paramref name="dates"/> is null.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the passages occur on different calendar days.
+        /// </exception>
+        public int GetTollFee(
+            IVehicle vehicle,
+            DateTime[] dates)
         {
-            // If vehicle or dates is null -> Exception
+            return Calculate(vehicle, dates).TotalFee;
+        }
+
+        /// <summary>
+        /// Calculates the total toll fee and detailed results
+        /// for every passage.
+        /// </summary>
+        /// <param name="vehicle">
+        /// The vehicle passing the toll stations.
+        /// </param>
+        /// <param name="dates">
+        /// The passage dates and times for one day.
+        /// </param>
+        /// <returns>
+        /// The total fee and the calculated fee progression
+        /// for every passage.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when <paramref name="vehicle"/> or
+        /// <paramref name="dates"/> is null.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        /// Thrown when the passages occur on different calendar days.
+        /// </exception>
+        public TollCalculationResult Calculate(
+            IVehicle vehicle,
+            DateTime[] dates)
+        {
             ArgumentNullException.ThrowIfNull(vehicle);
             ArgumentNullException.ThrowIfNull(dates);
 
             if (dates.Length == 0)
             {
-                return 0;
+                return new TollCalculationResult(0, []);
             }
 
-            // Make sure earliest time first
             DateTime[] sortedDates = dates
                 .OrderBy(date => date)
                 .ToArray();
 
-            DateTime intervalStart = sortedDates[0];
+            DateTime firstPassageDate = sortedDates[0];
 
             /*
-                The original implementation assumes that all passages occur on the same day,
-                but it does not validate this requirement. The Core layer throws an
-                ArgumentException when passages have different dates, while the API returns
-                HTTP 400 for invalid client input. A built-in exception is sufficient because
-                a custom exception would not add meaningful information here.
-            */
-
+                The calculation applies to passages from one calendar
+                day. Invalid input is rejected before any toll
+                calculation begins.
+             */
             bool containsMultipleDates = sortedDates
-                .Any(date => date.Date != intervalStart.Date);
+                .Any(date =>
+                    date.Date != firstPassageDate.Date);
 
             if (containsMultipleDates)
             {
                 throw new ArgumentException(
-                    "All passages must occur on the same day",
-                    nameof(dates));
+                    "All passages must occur on the same day.",
+                    nameof(dates)
+                );
             }
 
-            int highestFeeInterval = GetTollFee(intervalStart, vehicle);
-            int totalFee = 0;
-            
-            // First intervall is already handled so skip it
+            List<TollPassageResult> passageResults = [];
+
+            DateTime intervalStart = firstPassageDate;
+
+            int highestFeeInInterval =
+                GetTollFee(intervalStart, vehicle);
+
+            int completedIntervalsFee = 0;
+
+            passageResults.Add(
+                new TollPassageResult(
+                    intervalStart,
+                    highestFeeInInterval,
+                    Math.Min(
+                        highestFeeInInterval,
+                        MaximumDailyFee
+                    )
+                )
+            );
 
             foreach (DateTime date in sortedDates.Skip(1))
             {
-                int currentFee = GetTollFee(date, vehicle);
+                int passageFee =
+                    GetTollFee(date, vehicle);
 
                 double minutesSinceIntervalStart =
                     (date - intervalStart).TotalMinutes;
 
-                // If fee changed inside of 60 minute time period totalFee should not increase but highest Fee during this time should in the end be added to totalFee
-
-                if (minutesSinceIntervalStart <= SingleChargePeriodMinutes)
+                if (minutesSinceIntervalStart <=
+                    SingleChargePeriodMinutes)
                 {
-                    highestFeeInterval =
-                        Math.Max(highestFeeInterval, currentFee);
+                    highestFeeInInterval = Math.Max(
+                        highestFeeInInterval,
+                        passageFee
+                    );
                 }
                 else
                 {
-                    // add the Fee when interval is more then 60 min
-                    totalFee += highestFeeInterval;
+                    completedIntervalsFee +=
+                        highestFeeInInterval;
 
-                    //Set the new time to compare nextFee with, to first time that occurs after 60 min
                     intervalStart = date;
-                    
-                    //This time should also have a new higestFeeInterval which is the currentFee of current time 
-                    highestFeeInterval = currentFee;
+                    highestFeeInInterval = passageFee;
                 }
+
+                int runningTotal = Math.Min(
+                    completedIntervalsFee +
+                    highestFeeInInterval,
+                    MaximumDailyFee
+                );
+
+                passageResults.Add(
+                    new TollPassageResult(
+                        date,
+                        passageFee,
+                        runningTotal
+                    )
+                );
             }
 
-            totalFee += highestFeeInterval;
+            int totalFee = Math.Min(
+                completedIntervalsFee +
+                highestFeeInInterval,
+                MaximumDailyFee
+            );
 
-            //If totalFee is more than 60:- then no more fee should be added 
-
-            return Math.Min(totalFee, MaximumDailyFee);
+            return new TollCalculationResult(
+                totalFee,
+                passageResults
+            );
         }
 
+        /// <summary>
+        /// Determines whether a vehicle is exempt from toll fees.
+        /// </summary>
+        /// <param name="vehicle">The vehicle to check.</param>
+        /// <returns>
+        /// <see langword="true"/> if the vehicle is toll-free;
+        /// otherwise, <see langword="false"/>.
+        /// </returns>
         private bool IsTollFreeVehicle(IVehicle vehicle)
         {
-            // ** Changing the implementation to use the VehicleType enum instead of string comparison **
-            // ------------------------------------------------------------------------------------------
-            // if (vehicle == null) return false;  <-- Don´t need this should not be able to be null
-            // String vehicleType = vehicle.GetVehicleType();
-            // // return vehicleType.Equals(TollFreeVehicles.Motorbike.ToString()) ||
-            // //        vehicleType.Equals(TollFreeVehicles.Tractor.ToString()) ||
-            // //        vehicleType.Equals(TollFreeVehicles.Emergency.ToString()) ||
-            // //        vehicleType.Equals(TollFreeVehicles.Diplomat.ToString()) ||
-            // //        vehicleType.Equals(TollFreeVehicles.Foreign.ToString()) ||
-            // //        vehicleType.Equals(TollFreeVehicles.Military.ToString());
-            // ------------------------------------------------------------------------------------------
-
             return vehicle.Type is
                 VehicleType.Motorbike or
                 VehicleType.Tractor or
@@ -154,33 +223,28 @@ namespace TollFeeCalculator.Services
                 VehicleType.Military;
         }
 
-        public int GetTollFee(DateTime date, IVehicle vehicle)
+        /// <summary>
+        /// Calculates the toll fee for a single passage.
+        /// </summary>
+        /// <param name="date">
+        /// The date and time of the passage.
+        /// </param>
+        /// <param name="vehicle">
+        /// The vehicle passing the toll station.
+        /// </param>
+        /// <returns>The toll fee for the passage in SEK.</returns>
+        public int GetTollFee(
+            DateTime date,
+            IVehicle vehicle)
         {
-            if (IsTollFreeDate(date) || IsTollFreeVehicle(vehicle)) return 0;
+            if (IsTollFreeDate(date) ||
+                IsTollFreeVehicle(vehicle))
+            {
+                return 0;
+            }
 
-            // ** Changing to time in minutes that I will use in switch expression instead **
-            //-----------------------
-            // int hour = date.Hour;
-            // int minute = date.Minute;
-            //-----------------------
-
-
-
-            int timeInMinutes = date.Hour * 60 + date.Minute;
-
-            // ** Changing to switch expression**
-            //-------------------------------------------------------------
-            // if (hour == 6 && minute >= 0 && minute <= 29) return 8;
-            // else if (hour == 6 && minute >= 30 && minute <= 59) return 13;
-            // else if (hour == 7 && minute >= 0 && minute <= 59) return 18;
-            // else if (hour == 8 && minute >= 0 && minute <= 29) return 13;
-            // else if (hour >= 8 && hour <= 14 && minute >= 30 && minute <= 59) return 8;
-            // else if (hour == 15 && minute >= 0 && minute <= 29) return 13;
-            // else if (hour == 15 && minute >= 0 || hour == 16 && minute <= 59) return 18;
-            // else if (hour == 17 && minute >= 0 && minute <= 59) return 13;
-            // else if (hour == 18 && minute >= 0 && minute <= 29) return 8;
-            // else return 0;
-            //--------------------------------------------------------------
+            int timeInMinutes =
+                date.Hour * MinutesPerHour + date.Minute;
 
             return timeInMinutes switch
             {
@@ -199,12 +263,18 @@ namespace TollFeeCalculator.Services
                 or (>= ThreeThirtyPm and < FivePm)
                     => 18,
 
-
                 _ => 0
-
             };
         }
 
+        /// <summary>
+        /// Determines whether a date is exempt from toll fees.
+        /// </summary>
+        /// <param name="date">The date and time to check.</param>
+        /// <returns>
+        /// <see langword="true"/> if the date is toll-free;
+        /// otherwise, <see langword="false"/>.
+        /// </returns>
         private static bool IsTollFreeDate(DateTime date)
         {
             bool isWeekend = date.DayOfWeek is
@@ -215,41 +285,14 @@ namespace TollFeeCalculator.Services
                 date.Year == 2013 &&
                 date.Month == 7;
 
-            // ** Making it less messy**
-            //-------------------------------------------------------------------
-            // if (year == 2013)
-            // {
-            //     if (month == 1 && day == 1 ||
-            //         month == 3 && (day == 28 || day == 29) ||
-            //         month == 4 && (day == 1 || day == 30) ||
-            //         month == 5 && (day == 1 || day == 8 || day == 9) ||
-            //         month == 6 && (day == 5 || day == 6 || day == 21) ||
-            //         month == 7 ||
-            //         month == 11 && day == 1 ||
-            //         month == 12 && (day == 24 || day == 25 || day == 26 || day == 31))
-            //     {
-            //         return true;
-            //     }
-            // }
-            // return false;
-            //---------------------------------------------------------------------
+            bool isTollFreeDate =
+                TollFreeDates.Contains(
+                    DateOnly.FromDateTime(date)
+                );
 
-            bool isTollfreeDate =
-                TollFreeDates.Contains(DateOnly.FromDateTime(date));
-
-            return isWeekend || isTollFreeJuly || isTollfreeDate;
-
+            return isWeekend ||
+                   isTollFreeJuly ||
+                   isTollFreeDate;
         }
-
-        // ** Dont need this, created another ENUM in VehicleType.cs ** 
-        // private enum TollFreeVehicles
-        // {
-        //     Motorbike = 0,
-        //     Tractor = 1,
-        //     Emergency = 2,
-        //     Diplomat = 3,
-        //     Foreign = 4,
-        //     Military = 5
-        // }
     }
 }
