@@ -8,16 +8,35 @@ namespace TollFeeCalculator.Services
     {
         private const int MinutesPerHour = 60;
 
-        private const int SixOClock = 6 * MinutesPerHour;
-        private const int SixThirty = 6 * MinutesPerHour + 30;
-        private const int SevenOClock = 7 * MinutesPerHour;
-        private const int EightOClock = 8 * MinutesPerHour;
-        private const int EightThirty = 8 * MinutesPerHour + 30;
-        private const int ThreePm = 15 * MinutesPerHour;
-        private const int ThreeThirtyPm = 15 * MinutesPerHour + 30;
-        private const int FivePm = 17 * MinutesPerHour;
-        private const int SixPm = 18 * MinutesPerHour;
-        private const int SixThirtyPm = 18 * MinutesPerHour + 30;
+        private const int SixOClock =
+            6 * MinutesPerHour;
+
+        private const int SixThirty =
+            6 * MinutesPerHour + 30;
+
+        private const int SevenOClock =
+            7 * MinutesPerHour;
+
+        private const int EightOClock =
+            8 * MinutesPerHour;
+
+        private const int EightThirty =
+            8 * MinutesPerHour + 30;
+
+        private const int ThreePm =
+            15 * MinutesPerHour;
+
+        private const int ThreeThirtyPm =
+            15 * MinutesPerHour + 30;
+
+        private const int FivePm =
+            17 * MinutesPerHour;
+
+        private const int SixPm =
+            18 * MinutesPerHour;
+
+        private const int SixThirtyPm =
+            18 * MinutesPerHour + 30;
 
         // Maximum total toll fee in SEK for one vehicle and one day.
         private const int MaximumDailyFee = 60;
@@ -87,8 +106,8 @@ namespace TollFeeCalculator.Services
         /// The passage dates and times for one day.
         /// </param>
         /// <returns>
-        /// The total fee and the calculated fee progression
-        /// for every passage.
+        /// The total fee, applicable rules and calculated fee
+        /// progression for every passage.
         /// </returns>
         /// <exception cref="ArgumentNullException">
         /// Thrown when <paramref name="vehicle"/> or
@@ -106,14 +125,20 @@ namespace TollFeeCalculator.Services
 
             if (dates.Length == 0)
             {
-                return new TollCalculationResult(0, []);
+                return new TollCalculationResult(
+                    0,
+                    MaximumDailyFee,
+                    SingleChargePeriodMinutes,
+                    []
+                );
             }
 
             DateTime[] sortedDates = dates
                 .OrderBy(date => date)
                 .ToArray();
 
-            DateTime firstPassageDate = sortedDates[0];
+            DateTime firstPassageDate =
+                sortedDates[0];
 
             /*
                 The calculation applies to passages from one calendar
@@ -134,21 +159,28 @@ namespace TollFeeCalculator.Services
 
             List<TollPassageResult> passageResults = [];
 
-            DateTime intervalStart = firstPassageDate;
+            DateTime intervalStart =
+                firstPassageDate;
 
             int highestFeeInInterval =
                 GetTollFee(intervalStart, vehicle);
 
             int completedIntervalsFee = 0;
+            int chargePeriodNumber = 1;
+
+            int firstRunningTotal = Math.Min(
+                highestFeeInInterval,
+                MaximumDailyFee
+            );
 
             passageResults.Add(
                 new TollPassageResult(
                     intervalStart,
                     highestFeeInInterval,
-                    Math.Min(
-                        highestFeeInInterval,
-                        MaximumDailyFee
-                    )
+                    firstRunningTotal,
+                    chargePeriodNumber,
+                    true,
+                    firstRunningTotal >= MaximumDailyFee
                 )
             );
 
@@ -160,21 +192,25 @@ namespace TollFeeCalculator.Services
                 double minutesSinceIntervalStart =
                     (date - intervalStart).TotalMinutes;
 
-                if (minutesSinceIntervalStart <=
-                    SingleChargePeriodMinutes)
-                {
-                    highestFeeInInterval = Math.Max(
-                        highestFeeInInterval,
-                        passageFee
-                    );
-                }
-                else
+                bool startsNewChargePeriod =
+                    minutesSinceIntervalStart >
+                    SingleChargePeriodMinutes;
+
+                if (startsNewChargePeriod)
                 {
                     completedIntervalsFee +=
                         highestFeeInInterval;
 
                     intervalStart = date;
                     highestFeeInInterval = passageFee;
+                    chargePeriodNumber++;
+                }
+                else
+                {
+                    highestFeeInInterval = Math.Max(
+                        highestFeeInInterval,
+                        passageFee
+                    );
                 }
 
                 int runningTotal = Math.Min(
@@ -187,7 +223,10 @@ namespace TollFeeCalculator.Services
                     new TollPassageResult(
                         date,
                         passageFee,
-                        runningTotal
+                        runningTotal,
+                        chargePeriodNumber,
+                        startsNewChargePeriod,
+                        runningTotal >= MaximumDailyFee
                     )
                 );
             }
@@ -200,6 +239,8 @@ namespace TollFeeCalculator.Services
 
             return new TollCalculationResult(
                 totalFee,
+                MaximumDailyFee,
+                SingleChargePeriodMinutes,
                 passageResults
             );
         }
@@ -212,7 +253,8 @@ namespace TollFeeCalculator.Services
         /// <see langword="true"/> if the vehicle is toll-free;
         /// otherwise, <see langword="false"/>.
         /// </returns>
-        private bool IsTollFreeVehicle(IVehicle vehicle)
+        private bool IsTollFreeVehicle(
+            IVehicle vehicle)
         {
             return vehicle.Type is
                 VehicleType.Motorbike or
@@ -275,7 +317,8 @@ namespace TollFeeCalculator.Services
         /// <see langword="true"/> if the date is toll-free;
         /// otherwise, <see langword="false"/>.
         /// </returns>
-        private static bool IsTollFreeDate(DateTime date)
+        private static bool IsTollFreeDate(
+            DateTime date)
         {
             bool isWeekend = date.DayOfWeek is
                 DayOfWeek.Saturday or

@@ -155,4 +155,17 @@ public sealed class TollEndpointsTests
 
     }
 
+    [Fact]
+    public async Task Health_WhenApiIsRunning_ReturnsOk()
+    {
+        HttpResponseMessage response =
+            await _client.GetAsync("/health");
+
+        string responseContent =
+            await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Healthy", responseContent);
+    }
+
 }

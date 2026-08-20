@@ -9,12 +9,11 @@ WebApplicationBuilder builder =
 // Add service OpenApi to new builder
 builder.Services.AddOpenApi();
 
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.Converters.Add(
-        new JsonStringEnumConverter()
-    );
-});
+/*
+    Registers ASP.NET Core health checks so the application
+    can expose an endpoint for availability monitoring.
+ */
+builder.Services.AddHealthChecks();
 
 builder.Services.AddSingleton<TollCalculator>();
 
@@ -31,6 +30,15 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod();
     });
 });
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(
+        new JsonStringEnumConverter()
+    );
+});
+
+
 
 WebApplication app = builder.Build();
 
@@ -49,6 +57,12 @@ if (app.Environment.IsDevelopment())
  */
 
 app.UseCors(FrontendCorsPolicy);
+
+/*
+    Exposes a lightweight endpoint that monitoring services
+    can call to verify that the API is running.
+ */
+app.MapHealthChecks("/health");
 
 app.MapTollEndpoints();
 

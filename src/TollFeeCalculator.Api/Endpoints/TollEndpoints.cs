@@ -1,5 +1,4 @@
 using TollFeeCalculator.Api.Contracts;
-using TollFeeCalculator.Enums;
 using TollFeeCalculator.Models;
 using TollFeeCalculator.Services;
 
@@ -14,10 +13,11 @@ public static class TollEndpoints
             .MapGroup("/api/toll")
             .WithTags("Toll calculation");
 
-
         group.MapPost("/calculate", CalculateTollFee)
             .WithName("CalculateTollFee")
-            .WithSummary("Calculates the total toll fee for one day.");
+            .WithSummary(
+                "Calculates the total toll fee for one day."
+            );
 
         return endpoints;
     }
@@ -39,7 +39,7 @@ public static class TollEndpoints
             The endpoint validates client input before calling Core so
             that passages from different days produce HTTP 400 instead
             of an unhandled exception and HTTP 500.
-        */
+         */
         DateTime passageDate =
             request.Passages[0].Date;
 
@@ -71,13 +71,18 @@ public static class TollEndpoints
                     new TollPassageResponse(
                         passage.PassageTime,
                         passage.PassageFee,
-                        passage.RunningTotal
+                        passage.RunningTotal,
+                        passage.ChargePeriodNumber,
+                        passage.StartsNewChargePeriod,
+                        passage.DailyCapReached
                     )
                 )
                 .ToArray();
 
         CalculateTollResponse response = new(
             calculation.TotalFee,
+            calculation.MaximumDailyFee,
+            calculation.SingleChargePeriodMinutes,
             passageResponses
         );
 

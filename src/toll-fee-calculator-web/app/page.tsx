@@ -6,9 +6,14 @@ import { type SubmitEvent, useState } from "react";
 import { calculateTollFee } from "@/lib/toll-api";
 
 import {
+  type CalculateTollResponse,
   type VehicleType,
-  vehicleTypes
+  vehicleTypes,
 } from "@/types/toll";
+
+import {
+  TollVisualization,
+} from "@/components/toll-calculator/TollVisualization";
 
 //datetime-local expects the form ÅÅÅÅ-MM-DDTHH:mm
 const initialPassage = "2013-01-02T06:10";
@@ -16,7 +21,7 @@ const initialPassage = "2013-01-02T06:10";
 export default function Home() {
   const [vehicleType, setVehicleType] = useState<VehicleType>("Car");
   const [passages, setPassages] = useState<string[]>([initialPassage]);
-  const [totalFee, setTotalFee] = useState<number | null>(null);
+  const [calculationResult, setCalculationResult] = useState<CalculateTollResponse | null>(null);
 
   //Potential Error
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +62,7 @@ export default function Home() {
   ) {
     event.preventDefault();
     setError(null);
-    setTotalFee(null);
+    setCalculationResult(null);
     setIsLoading(true);
 
     try {
@@ -66,7 +71,7 @@ export default function Home() {
         passages
       });
 
-      setTotalFee(result.totalFee);
+      setCalculationResult(result);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -174,17 +179,13 @@ export default function Home() {
               : "Calculate toll fee"}
           </button>
         </form>
-        {totalFee !== null && (
-          <section className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
-            <p className="text-sm text-emerald-300">
-              Total toll fee
-            </p>
-
-            <p className="mt-1 text-4xl font-bold">
-              {totalFee} SEK
-            </p>
-          </section>
+        
+        {calculationResult !== null && (
+          <TollVisualization
+            calculation={calculationResult}
+          />
         )}
+        
         
         {error && (
           <p
